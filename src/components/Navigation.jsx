@@ -3,13 +3,28 @@ import { useCurrentAccount, useDisconnectWallet } from '@mysten/dapp-kit'
 import { ConnectButton } from '@mysten/dapp-kit'
 import { Wallet, Home, Heart, Building, Users, Plus, LogOut, ChevronDown } from 'lucide-react'
 import { hasAdminAccess } from '../constants/contracts'
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 const Navigation = () => {
   const currentAccount = useCurrentAccount()
-  const { disconnect } = useDisconnectWallet()
+  const { mutate: disconnect } = useDisconnectWallet()
   const location = useLocation()
   const [showWalletMenu, setShowWalletMenu] = useState(false)
+  const walletMenuRef = useRef(null)
+
+  // Close wallet menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (walletMenuRef.current && !walletMenuRef.current.contains(event.target)) {
+        setShowWalletMenu(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [])
 
   const isActive = (path) => {
     return location.pathname === path
@@ -27,9 +42,31 @@ const Navigation = () => {
     navItems.push({ path: '/ngo', label: 'NGO', icon: Building })
   }
 
-  const handleDisconnect = () => {
-    disconnect()
-    setShowWalletMenu(false)
+  const handleDisconnect = (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    
+    console.log('Disconnect button clicked')
+    
+    try {
+      console.log('Attempting to disconnect...')
+      
+      // Use the mutate function directly
+      disconnect(undefined, {
+        onSuccess: () => {
+          console.log('Wallet disconnected successfully')
+          setShowWalletMenu(false)
+        },
+        onError: (error) => {
+          console.error('Error disconnecting wallet:', error)
+          setShowWalletMenu(false)
+        }
+      })
+      
+    } catch (error) {
+      console.error('Error disconnecting wallet:', error)
+      setShowWalletMenu(false)
+    }
   }
 
   return (
@@ -69,7 +106,7 @@ const Navigation = () => {
 
             {/* Wallet Menu or Connect Button */}
             {currentAccount ? (
-              <div className="relative">
+              <div className="relative" ref={walletMenuRef}>
                 <button
                   onClick={() => setShowWalletMenu(!showWalletMenu)}
                   className="flex flex-col items-center p-2 rounded-xl transition-all duration-300 transform hover:scale-105 text-gray-600 hover:text-primary-500 hover:bg-white/50"
@@ -84,20 +121,31 @@ const Navigation = () => {
 
                 {/* Dropdown Menu */}
                 {showWalletMenu && (
-                  <div className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 bg-white rounded-lg shadow-xl border border-gray-200 min-w-[200px]">
+                  <div className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 bg-white rounded-lg shadow-xl border border-gray-200 min-w-[200px] z-50">
                     <div className="p-3 border-b border-gray-100">
                       <div className="text-xs text-gray-500 mb-1">Connected Wallet</div>
                       <div className="font-mono text-sm text-gray-800 truncate">
                         {currentAccount.address.slice(0, 6)}...{currentAccount.address.slice(-4)}
                       </div>
                     </div>
-                    <div className="p-1">
+                    <div className="p-1 space-y-1">
                       <button
                         onClick={handleDisconnect}
                         className="w-full flex items-center px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md transition-colors"
                       >
                         <LogOut className="w-4 h-4 mr-2" />
                         Disconnect Wallet
+                      </button>
+                      <button
+                        onClick={() => {
+                          console.log('Force disconnect clicked')
+                          setShowWalletMenu(false)
+                          window.location.reload()
+                        }}
+                        className="w-full flex items-center px-3 py-2 text-xs text-gray-500 hover:bg-gray-50 rounded-md transition-colors"
+                      >
+                        <LogOut className="w-3 h-3 mr-2" />
+                        Force Disconnect
                       </button>
                     </div>
                   </div>

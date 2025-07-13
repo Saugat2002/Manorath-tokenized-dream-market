@@ -41,6 +41,7 @@ const Pledge = () => {
           savedAmount: parseInt(fields.savedAmount || '0'),
           isComplete: fields.isComplete || false,
           isApproved: fields.isApproved || false,
+          hasVault: fields.hasVault || false,
           createdAt: new Date().toISOString(),
           description: fields.description || 'No description provided',
         }
@@ -74,8 +75,8 @@ const Pledge = () => {
       return
     }
 
-    if (!dream.isApproved) {
-      toast.error('This dream is not approved for pledging yet')
+    if (!dream.isApproved || !dream.hasVault) {
+      toast.error('This dream is not ready for pledging yet')
       return
     }
 
@@ -199,7 +200,7 @@ const Pledge = () => {
             </div>
 
             {/* Approval Status */}
-            {!dream.isApproved ? (
+            {!dream.isApproved || !dream.hasVault ? (
               <div className="flex items-center text-yellow-600 mb-4">
                 <Clock className="w-5 h-5 mr-2" />
                 <span className="font-medium">Awaiting NGO Approval</span>

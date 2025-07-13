@@ -2,6 +2,9 @@ module final_project::DreamNFT;
 
 use std::string;
 use sui::event;
+use sui::coin::{Self, Coin};
+use sui::balance::{Self, Balance};
+use sui::sui::SUI;
 
 public struct DreamNFT has key {
     id: UID,
@@ -9,8 +12,10 @@ public struct DreamNFT has key {
     title: string::String,
     goalAmount: u64,
     savedAmount: u64,
+    pledgedFunds: Balance<SUI>, // Store actual SUI tokens
     isComplete: bool,
     isApproved: bool,
+    hasVault: bool,
     description: string::String,
 }
 
@@ -65,8 +70,10 @@ public entry fun mintDream(
         title: title,
         goalAmount: goalAmount,
         savedAmount: 0,
+        pledgedFunds: balance::zero<SUI>(), // Initialize empty balance
         isComplete: false,
         isApproved: false,
+        hasVault: false,
         description: description,
     };
 
@@ -77,7 +84,9 @@ public entry fun mintDream(
         goalAmount: dream.goalAmount,
         description: dream.description,
     });
-    transfer::transfer(dream, ctx.sender());
+    
+    // Make the dream a shared object so others can interact with it
+    transfer::share_object(dream);
 }
 
 // Admin function to approve dreams
@@ -90,16 +99,43 @@ public entry fun rejectDream(_: &AdminCap, dream: &mut DreamNFT) {
     dream.isApproved = false;
 }
 
-// Only allow pledging to approved dreams
-public entry fun pledgeToDream(nft: &mut DreamNFT, amount: u64) {
+// Function to mark that a vault has been created for this dream
+public entry fun markVaultCreated(_: &AdminCap, dream: &mut DreamNFT) {
+    dream.hasVault = true;
+}
+
+// Accept actual SUI tokens when pledging
+public entry fun pledgeToDream(nft: &mut DreamNFT, payment: Coin<SUI>) {
     assert!(nft.isApproved, 1); // Error code 1: Dream not approved
+    assert!(nft.hasVault, 2); // Error code 2: Dream has no vault
+    
+    let amount = coin::value(&payment);
+    let payment_balance = coin::into_balance(payment);
+    
+    // Add the actual SUI tokens to the dream's balance
+    balance::join(&mut nft.pledgedFunds, payment_balance);
+    
+    // Update the tracked amount
     nft.savedAmount = nft.savedAmount + amount;
     if (nft.savedAmount >= nft.goalAmount) {
         nft.isComplete = true;
     };
+    
     event::emit(Pledged {
         pledgedAmount: amount,
     });
+}
+
+// Function to release all funds to the dream owner
+public entry fun releaseFunds(nft: &mut DreamNFT, ctx: &mut TxContext) {
+    assert!(nft.isComplete, 0); // Only complete dreams can release funds
+    assert!(ctx.sender() == nft.owner, 1); // Only owner can release
+    
+    let total_balance = balance::withdraw_all(&mut nft.pledgedFunds);
+    let total_coin = coin::from_balance(total_balance, ctx);
+    
+    // Transfer all funds to the dream owner
+    transfer::public_transfer(total_coin, nft.owner);
 }
 
 public fun isComplete(nft: &DreamNFT): bool {
@@ -110,7 +146,14 @@ public fun isApproved(nft: &DreamNFT): bool {
     nft.isApproved
 }
 
-public fun addMatchAmount(dream: &mut DreamNFT, amount: u64) {
+public fun hasVault(nft: &DreamNFT): bool {
+    nft.hasVault
+}
+
+public fun addMatchAmount(dream: &mut DreamNFT, match_payment: Balance<SUI>) {
+    let amount = balance::value(&match_payment);
+    balance::join(&mut dream.pledgedFunds, match_payment);
+    
     dream.savedAmount = dream.savedAmount + amount;
     if (dream.savedAmount >= dream.goalAmount) {
         dream.isComplete = true;
@@ -118,8 +161,6 @@ public fun addMatchAmount(dream: &mut DreamNFT, amount: u64) {
 }
 
 // Get all dreams (admin function)
-public fun getAllDreams(): vector<ID> {
-    // This would need to be implemented differently in a real scenario
-    // For now, we'll use a different approach
-    vector::empty()
+public fun getAllDreams(): vector<DreamNFT> {
+    vector::empty<DreamNFT>()
 }

@@ -1,19 +1,21 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { useCurrentAccount } from '@mysten/dapp-kit'
-import { Heart, Plus, Search, Filter, Loader2, CheckCircle, Clock, Eye } from 'lucide-react'
+import { useCurrentAccount, useSignAndExecuteTransaction } from '@mysten/dapp-kit'
+import { Heart, Plus, Search, Filter, Loader2, CheckCircle, Clock, Eye, Download } from 'lucide-react'
 import DreamCard from '../components/DreamCard'
-import { getUserDreams, getApprovedDreams, mistToSui } from '../utils/blockchain'
+import { getUserDreams, getApprovedDreams, mistToSui, releaseFunds } from '../utils/blockchain'
 import { isPackageConfigured, hasAdminAccess } from '../constants/contracts'
 import toast from 'react-hot-toast'
 
 const DreamList = () => {
   const currentAccount = useCurrentAccount()
+  const { mutate: signAndExecute } = useSignAndExecuteTransaction()
   
   const [dreams, setDreams] = useState([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('all') // all, active, completed, pending, approved
   const [searchTerm, setSearchTerm] = useState('')
+  const [releasingFunds, setReleasingFunds] = useState(null) // Track which dream is releasing funds
 
   useEffect(() => {
     if (currentAccount && isPackageConfigured()) {
@@ -47,6 +49,7 @@ const DreamList = () => {
           savedAmount: parseInt(fields.savedAmount || '0'),
           isComplete: fields.isComplete || false,
           isApproved: fields.isApproved || false,
+          hasVault: fields.hasVault || false,
           createdAt: new Date().toISOString(),
           description: fields.description || 'No description provided',
         }
@@ -61,6 +64,18 @@ const DreamList = () => {
     }
   }
 
+  const handleReleaseFunds = async (dreamId) => {
+    setReleasingFunds(dreamId)
+    try {
+      await releaseFunds(signAndExecute, dreamId)
+      // Reload dreams to update the UI
+      loadUserDreams()
+    } catch (error) {
+      console.error('Error releasing funds:', error)
+    }
+    setReleasingFunds(null)
+  }
+
   const filteredDreams = dreams.filter(dream => {
     const matchesSearch = dream.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          dream.description.toLowerCase().includes(searchTerm.toLowerCase())
@@ -71,9 +86,9 @@ const DreamList = () => {
     } else if (filter === 'completed') {
       matchesFilter = dream.isComplete
     } else if (filter === 'pending') {
-      matchesFilter = !dream.isApproved && !dream.isComplete
+      matchesFilter = (!dream.isApproved || !dream.hasVault) && !dream.isComplete
     } else if (filter === 'approved') {
-      matchesFilter = dream.isApproved && !dream.isComplete
+      matchesFilter = dream.isApproved && dream.hasVault && !dream.isComplete
     }
     
     return matchesSearch && matchesFilter
@@ -82,10 +97,10 @@ const DreamList = () => {
   const getStatusBadge = (dream) => {
     if (dream.isComplete) {
       return { text: 'Completed', color: 'bg-green-100 text-green-800' }
-    } else if (dream.isApproved) {
+    } else if (dream.isApproved && dream.hasVault) {
       return { text: 'Approved', color: 'bg-blue-100 text-blue-800' }
     } else {
-      return { text: 'Pending', color: 'bg-yellow-100 text-yellow-800' }
+      return { text: 'Waiting for approval', color: 'bg-yellow-100 text-yellow-800' }
     }
   }
 
@@ -250,22 +265,39 @@ const DreamList = () => {
                     {new Date(dream.createdAt).toLocaleDateString()}
                   </div>
                   
-                  {!dream.isComplete && dream.isApproved && (
-                    <Link 
-                      to={`/pledge/${dream.id}`}
-                      className="btn-primary py-2 px-4 text-sm"
-                    >
-                      <Heart className="w-4 h-4 mr-1" />
-                      Pledge
-                    </Link>
-                  )}
-                  
-                  {!dream.isApproved && !hasAdminAccess(currentAccount) && (
-                    <div className="flex items-center text-sm text-yellow-600">
-                      <Clock className="w-4 h-4 mr-1" />
-                      Awaiting Approval
-                    </div>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {!dream.isComplete && dream.isApproved && (
+                      <Link 
+                        to={`/pledge/${dream.id}`}
+                        className="btn-primary py-2 px-4 text-sm"
+                      >
+                        <Heart className="w-4 h-4 mr-1" />
+                        Pledge
+                      </Link>
+                    )}
+                    
+                    {dream.isComplete && dream.owner === currentAccount?.address && (
+                      <button
+                        onClick={() => handleReleaseFunds(dream.id)}
+                        disabled={releasingFunds === dream.id}
+                        className="btn-primary py-2 px-4 text-sm disabled:opacity-50"
+                      >
+                        {releasingFunds === dream.id ? (
+                          <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                        ) : (
+                          <Download className="w-4 h-4 mr-1" />
+                        )}
+                        {releasingFunds === dream.id ? 'Releasing...' : 'Release Funds'}
+                      </button>
+                    )}
+                    
+                    {!dream.isApproved && !hasAdminAccess(currentAccount) && (
+                      <div className="flex items-center text-sm text-yellow-600">
+                        <Clock className="w-4 h-4 mr-1" />
+                        Awaiting Approval
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             )

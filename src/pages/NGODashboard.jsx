@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useCurrentAccount, useSignAndExecuteTransaction } from '@mysten/dapp-kit'
 import { Building, Plus, DollarSign, Clock, CheckCircle, Loader2, Eye, CheckCircle2, XCircle } from 'lucide-react'
-import { createNGOVault, recordMonthlyContribution, releaseMatch, getUserVaults, mistToSui, getPendingDreams, getApprovedDreams, approveDream, rejectDream } from '../utils/blockchain'
+import { createNGOVault, recordMonthlyContribution, releaseMatch, getUserVaults, mistToSui, getPendingDreams, getApprovedDreams, approveDream, rejectDream, getApprovedDreamsWithoutVault, getObjectDetails } from '../utils/blockchain'
 import { isPackageConfigured, hasAdminAccess } from '../constants/contracts'
 import toast from 'react-hot-toast'
 
@@ -10,8 +10,8 @@ const NGODashboard = () => {
   const currentAccount = useCurrentAccount()
   const { mutate: signAndExecute } = useSignAndExecuteTransaction()
   
-  const [activeTab, setActiveTab] = useState('pending') // pending, approved, vaults, create
-  const [formData, setFormData] = useState({
+  const [activeTab, setActiveTab] = useState('pending') // pending, approved, vaults
+  const [vaultFormData, setVaultFormData] = useState({
     dreamId: '',
     matchAmount: '',
     minMonths: '',
@@ -70,23 +70,48 @@ const NGODashboard = () => {
     try {
       const vaultObjects = await getUserVaults(currentAccount.address)
       
-      // Transform blockchain objects to our vault format
-      const transformedVaults = vaultObjects.map(obj => {
-        const fields = obj.data?.content?.fields || {}
-        
-        return {
-          id: obj.data?.objectId,
-          dreamId: fields.dreamID || 'unknown',
-          matchAmount: parseInt(fields.matchAmount || '0'),
-          minMonths: parseInt(fields.minMonths || '0'),
-          fulfilledMonths: parseInt(fields.fulfilledMonths || '0'),
-          isActive: fields.isActive !== undefined ? fields.isActive : true,
-          ngo: fields.ngo || currentAccount.address,
-          createdAt: new Date().toISOString(),
-        }
-      })
+      // Transform blockchain objects to our vault format and fetch dream details
+      const vaultsWithDreams = await Promise.all(
+        vaultObjects.map(async (obj) => {
+          const fields = obj.data?.content?.fields || {}
+          const dreamId = fields.dreamID || 'unknown'
+          
+          // Fetch dream details for this vault
+          let dreamTitle = 'Unknown Dream'
+          let dreamDescription = ''
+          let dreamGoalAmount = 0
+          
+          if (dreamId !== 'unknown') {
+            try {
+              const dreamObject = await getObjectDetails(dreamId)
+              if (dreamObject?.data?.content?.fields) {
+                const dreamFields = dreamObject.data.content.fields
+                dreamTitle = dreamFields.title || 'Untitled Dream'
+                dreamDescription = dreamFields.description || ''
+                dreamGoalAmount = parseInt(dreamFields.goalAmount || '0')
+              }
+            } catch (error) {
+              console.error('Error fetching dream details for vault:', error)
+            }
+          }
+          
+          return {
+            id: obj.data?.objectId,
+            dreamId: dreamId,
+            dreamTitle: dreamTitle,
+            dreamDescription: dreamDescription,
+            dreamGoalAmount: dreamGoalAmount,
+            matchAmount: parseInt(fields.matchAmount || '0'),
+            minMonths: parseInt(fields.minMonths || '0'),
+            fulfilledMonths: parseInt(fields.fulfilledMonths || '0'),
+            isActive: fields.isActive !== undefined ? fields.isActive : true,
+            ngo: fields.ngo || currentAccount.address,
+            createdAt: new Date().toISOString(),
+          }
+        })
+      )
       
-      setVaults(transformedVaults)
+      setVaults(vaultsWithDreams)
     } catch (error) {
       console.error('Error loading vaults:', error)
       toast.error('Failed to load vaults')
@@ -95,17 +120,15 @@ const NGODashboard = () => {
     }
   }
 
-  const handleInputChange = (e) => {
+  const handleVaultFormChange = (e) => {
     const { name, value } = e.target
-    setFormData(prev => ({
+    setVaultFormData(prev => ({
       ...prev,
       [name]: value
     }))
   }
 
-  const handleCreateVault = async (e) => {
-    e.preventDefault()
-    
+  const handleApproveAndCreateVault = async (dreamId, matchAmount, minMonths) => {
     if (!currentAccount) {
       toast.error('Please connect your wallet first')
       return
@@ -116,8 +139,8 @@ const NGODashboard = () => {
       return
     }
 
-    if (!formData.dreamId || !formData.matchAmount || !formData.minMonths) {
-      toast.error('Please fill in all fields')
+    if (!matchAmount || !minMonths) {
+      toast.error('Please provide match amount and minimum months')
       return
     }
 
@@ -126,38 +149,21 @@ const NGODashboard = () => {
     try {
       await createNGOVault(
         signAndExecute,
-        formData.dreamId,
-        parseFloat(formData.matchAmount),
-        parseInt(formData.minMonths)
+        dreamId,
+        parseFloat(matchAmount),
+        parseInt(minMonths)
       )
       
-      // Reset form
-      setFormData({
-        dreamId: '',
-        matchAmount: '',
-        minMonths: '',
-      })
+      // Reload all data
+      await loadPendingDreams()
+      await loadApprovedDreams()
       
-      // Switch to vaults tab and reload vaults
-      setActiveTab('vaults')
-      await loadVaults()
-      
-      toast.success('Vault created successfully!')
+      toast.success('Dream approved and vault created successfully!')
     } catch (error) {
       console.error('Error creating vault:', error)
       toast.error('Failed to create vault: ' + error.message)
     } finally {
       setIsLoading(false)
-    }
-  }
-
-  const handleApproveDream = async (dreamId) => {
-    try {
-      await approveDream(signAndExecute, dreamId)
-      await loadPendingDreams()
-      await loadApprovedDreams()
-    } catch (error) {
-      console.error('Error approving dream:', error)
     }
   }
 
@@ -313,16 +319,6 @@ const NGODashboard = () => {
           >
             My Vaults ({vaults.length})
           </button>
-          <button
-            onClick={() => setActiveTab('create')}
-            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-              activeTab === 'create'
-                ? 'bg-white text-gray-800'
-                : 'text-white/80 hover:text-white'
-            }`}
-          >
-            Create Vault
-          </button>
         </div>
       </div>
 
@@ -373,21 +369,55 @@ const NGODashboard = () => {
                       <p className="text-sm text-gray-600">{dream.description}</p>
                     </div>
 
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => handleApproveDream(dream.id)}
-                        className="btn-primary flex-1 py-2 text-sm"
-                      >
-                        <CheckCircle2 className="w-4 h-4 mr-1" />
-                        Approve
-                      </button>
-                      <button
-                        onClick={() => handleRejectDream(dream.id)}
-                        className="btn-secondary flex-1 py-2 text-sm"
-                      >
-                        <XCircle className="w-4 h-4 mr-1" />
-                        Reject
-                      </button>
+                    <div className="border-t pt-4 space-y-3">
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-xs text-gray-600 mb-1">Match Amount (SUI)</label>
+                          <input
+                            type="number"
+                            placeholder="100"
+                            step="0.1"
+                            min="0"
+                            className="w-full px-2 py-1 text-sm border rounded focus:ring-1 focus:ring-blue-500"
+                            id={`match-${dream.id}`}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-600 mb-1">Min Months</label>
+                          <input
+                            type="number"
+                            placeholder="6"
+                            min="1"
+                            className="w-full px-2 py-1 text-sm border rounded focus:ring-1 focus:ring-blue-500"
+                            id={`months-${dream.id}`}
+                          />
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => {
+                            const matchAmount = document.getElementById(`match-${dream.id}`).value
+                            const minMonths = document.getElementById(`months-${dream.id}`).value
+                            if (matchAmount && minMonths) {
+                              handleApproveAndCreateVault(dream.id, matchAmount, minMonths)
+                            } else {
+                              toast.error('Please fill in match amount and minimum months')
+                            }
+                          }}
+                          disabled={isLoading}
+                          className="btn-primary flex-1 py-2 text-sm disabled:opacity-50"
+                        >
+                          <CheckCircle2 className="w-4 h-4 mr-1" />
+                          {isLoading ? 'Processing...' : 'Approve & Create Vault'}
+                        </button>
+                        <button
+                          onClick={() => handleRejectDream(dream.id)}
+                          className="btn-secondary py-2 px-4 text-sm"
+                        >
+                          <XCircle className="w-4 h-4 mr-1" />
+                          Reject
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )
@@ -472,14 +502,9 @@ const NGODashboard = () => {
                       ></div>
                     </div>
 
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => setActiveTab('create')}
-                        className="btn-primary flex-1 py-2 text-sm"
-                      >
-                        <Plus className="w-4 h-4 mr-1" />
-                        Create Vault
-                      </button>
+                    <div className="text-center text-sm text-gray-500">
+                      <CheckCircle className="w-5 h-5 mx-auto mb-1 text-green-500" />
+                      Vault created and active
                     </div>
                   </div>
                 )
@@ -501,107 +526,7 @@ const NGODashboard = () => {
         </div>
       )}
 
-      {/* Create Vault Tab */}
-      {activeTab === 'create' && (
-        <div className="max-w-2xl mx-auto">
-          <div className="card p-8">
-            <h2 className="text-xl font-semibold text-gray-800 mb-6">
-              Create Matching Vault
-            </h2>
-            
-            <form onSubmit={handleCreateVault} className="space-y-6">
-              <div>
-                <label className="block text-gray-700 font-medium mb-2">
-                  Dream ID *
-                </label>
-                <input
-                  type="text"
-                  name="dreamId"
-                  value={formData.dreamId}
-                  onChange={handleInputChange}
-                  placeholder="Enter the dream ID you want to support"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                  required
-                />
-                <p className="text-sm text-gray-500 mt-1">
-                  You can find dream IDs on the approved dreams page
-                </p>
-              </div>
 
-              <div>
-                <label className="flex items-center text-gray-700 font-medium mb-2">
-                  <DollarSign className="w-4 h-4 mr-2" />
-                  Match Amount (SUI) *
-                </label>
-                <input
-                  type="number"
-                  name="matchAmount"
-                  value={formData.matchAmount}
-                  onChange={handleInputChange}
-                  placeholder="e.g., 10"
-                  min="0"
-                  step="0.01"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                  required
-                />
-                <p className="text-sm text-gray-500 mt-1">
-                  Amount you will contribute when requirements are met
-                </p>
-              </div>
-
-              <div>
-                <label className="flex items-center text-gray-700 font-medium mb-2">
-                  <Clock className="w-4 h-4 mr-2" />
-                  Minimum Months *
-                </label>
-                <input
-                  type="number"
-                  name="minMonths"
-                  value={formData.minMonths}
-                  onChange={handleInputChange}
-                  placeholder="e.g., 6"
-                  min="1"
-                  max="12"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                  required
-                />
-                <p className="text-sm text-gray-500 mt-1">
-                  Number of months the dream owner must contribute before match is released
-                </p>
-              </div>
-
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full btn-primary py-3 text-lg disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                    Creating Vault...
-                  </>
-                ) : (
-                  <>
-                    <Plus className="w-5 h-5 mr-2" />
-                    Create Vault
-                  </>
-                )}
-              </button>
-            </form>
-
-            {/* Info */}
-            <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-              <h4 className="font-medium text-blue-800 mb-2">How matching vaults work</h4>
-              <ul className="text-sm text-blue-700 space-y-1">
-                <li>• Create a vault with matching funds for a specific dream</li>
-                <li>• Set minimum months the dream owner must contribute</li>
-                <li>• Once requirements are met, your matching funds are released</li>
-                <li>• Help amplify the impact of community savings</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Vaults Tab */}
       {activeTab === 'vaults' && (
@@ -615,13 +540,21 @@ const NGODashboard = () => {
               {vaults.map((vault) => (
                 <div key={vault.id} className="card p-6">
                   <div className="flex items-start justify-between mb-4">
-                    <div>
-                      <h3 className="text-lg font-semibold text-gray-800">
-                        Vault for Dream
+                    <div className="flex-1 pr-3">
+                      <h3 className="text-lg font-semibold text-gray-800 mb-1">
+                        {vault.dreamTitle || 'Vault for Dream'}
                       </h3>
-                      <p className="text-sm text-gray-500">
-                        Dream ID: {vault.dreamId && vault.dreamId !== 'unknown' ? (
-                          vault.dreamId.length > 20 ? `${vault.dreamId.slice(0, 10)}...${vault.dreamId.slice(-4)}` : vault.dreamId
+                      <p className="text-sm text-gray-500 mb-1">
+                        Goal: {mistToSui(vault.dreamGoalAmount || 0).toFixed(2)} SUI
+                      </p>
+                      {vault.dreamDescription && (
+                        <p className="text-xs text-gray-400 line-clamp-2">
+                          {vault.dreamDescription}
+                        </p>
+                      )}
+                      <p className="text-xs text-gray-400 mt-1">
+                        ID: {vault.dreamId && vault.dreamId !== 'unknown' ? (
+                          vault.dreamId.length > 20 ? `${vault.dreamId.slice(0, 8)}...${vault.dreamId.slice(-6)}` : vault.dreamId
                         ) : 'Loading...'}
                       </p>
                     </div>
@@ -702,16 +635,9 @@ const NGODashboard = () => {
                 <h3 className="text-xl font-semibold text-gray-800 mb-2">
                   No Vaults Created
                 </h3>
-                <p className="text-gray-600 mb-6">
-                  Start supporting dreams by creating your first matching vault
+                <p className="text-gray-600">
+                  Vaults are created automatically when you approve dreams. Check the pending dreams tab to approve dreams and create vaults.
                 </p>
-                <button 
-                  onClick={() => setActiveTab('create')}
-                  className="btn-primary"
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Create First Vault
-                </button>
               </div>
             </div>
           )}
