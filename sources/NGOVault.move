@@ -8,17 +8,6 @@ use sui::event;
 // use sui::object::{Self, UID};
 // use sui::tx_context::{Self, TxContext};
 
-public struct AdminCap has key {
-    id: UID,
-}
-
-fun init(ctx: &mut TxContext) {
-    let adminCap = AdminCap {
-        id: object::new(ctx),
-    };
-    transfer::transfer(adminCap, ctx.sender());
-}
-
 public struct NGOVault has key {
     id: UID,
     ngo: address,
@@ -36,7 +25,7 @@ public struct MatchReleased has copy, drop {
 }
 
 public entry fun createVault(
-    _: &AdminCap,
+    _: &DreamNFT::AdminCap,
     dreamID: ID,
     matchAmount: u64,
     minMonths: u8,
@@ -63,7 +52,7 @@ public entry fun recordMonthlyContribution(vault: &mut NGOVault, dream: &DreamNF
 }
 
 public entry fun releaseMatch(
-    _: &AdminCap,
+    _: &DreamNFT::AdminCap,
     vault: &mut NGOVault,
     dream: &mut DreamNFT::DreamNFT,
     ctx: &mut TxContext,

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useCurrentAccount, useSignAndExecuteTransaction } from '@mysten/dapp-kit'
-import { Heart, DollarSign, User, ArrowLeft, Loader2, CheckCircle } from 'lucide-react'
+import { Heart, DollarSign, User, ArrowLeft, Loader2, CheckCircle, Clock, XCircle } from 'lucide-react'
 import { pledgeToDream, mistToSui, getObjectDetails } from '../utils/blockchain'
 import { isPackageConfigured } from '../constants/contracts'
 import DreamCard from '../components/DreamCard'
@@ -40,6 +40,7 @@ const Pledge = () => {
           goalAmount: parseInt(fields.goalAmount || '0'),
           savedAmount: parseInt(fields.savedAmount || '0'),
           isComplete: fields.isComplete || false,
+          isApproved: fields.isApproved || false,
           createdAt: new Date().toISOString(),
           description: fields.description || 'No description provided',
         }
@@ -70,6 +71,11 @@ const Pledge = () => {
 
     if (!isPackageConfigured()) {
       toast.error('Smart contract not deployed')
+      return
+    }
+
+    if (!dream.isApproved) {
+      toast.error('This dream is not approved for pledging yet')
       return
     }
 
@@ -192,12 +198,25 @@ const Pledge = () => {
               {dream.owner && dream.owner.length > 10 ? `${dream.owner.slice(0, 6)}...${dream.owner.slice(-4)}` : dream.owner}
             </div>
 
-            {dream.isComplete ? (
+            {/* Approval Status */}
+            {!dream.isApproved ? (
+              <div className="flex items-center text-yellow-600 mb-4">
+                <Clock className="w-5 h-5 mr-2" />
+                <span className="font-medium">Awaiting NGO Approval</span>
+              </div>
+            ) : dream.isComplete ? (
               <div className="flex items-center text-green-600 mb-4">
                 <CheckCircle className="w-5 h-5 mr-2" />
                 <span className="font-medium">Dream Completed!</span>
               </div>
             ) : (
+              <div className="flex items-center text-blue-600 mb-4">
+                <CheckCircle className="w-5 h-5 mr-2" />
+                <span className="font-medium">Approved for Pledging</span>
+              </div>
+            )}
+
+            {!dream.isComplete && (
               <div className="mb-4">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm text-gray-600">
@@ -262,6 +281,16 @@ const Pledge = () => {
               </h3>
               <p className="text-gray-600">
                 This dream has already reached its goal. Check out other dreams that need support.
+              </p>
+            </div>
+          ) : !dream.isApproved ? (
+            <div className="text-center py-8">
+              <Clock className="w-16 h-16 text-yellow-500 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-gray-800 mb-2">
+                Awaiting Approval
+              </h3>
+              <p className="text-gray-600">
+                This dream is currently under review by the NGO team. Once approved, you'll be able to pledge.
               </p>
             </div>
           ) : (

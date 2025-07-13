@@ -50,7 +50,7 @@ const MintDream = () => {
       return
     }
 
-    if (!formData.title || !formData.goalAmount) {
+    if (!formData.title || !formData.goalAmount || !formData.description) {
       toast.error('Please fill in all required fields')
       return
     }
@@ -64,8 +64,8 @@ const MintDream = () => {
     setIsLoading(true)
     
     try {
-      await mintDream(signAndExecute, formData.title, goalAmount)
-      toast.success('Dream NFT created successfully!')
+      await mintDream(signAndExecute, formData.title, goalAmount, formData.description)
+      toast.success('Dream NFT created successfully! Waiting for NGO approval.')
       
       // Reset form
       setFormData({
@@ -147,7 +147,7 @@ const MintDream = () => {
 
           <div>
             <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-2">
-              Description
+              Description *
             </label>
             <textarea
               id="description"
@@ -157,8 +157,12 @@ const MintDream = () => {
               placeholder="Describe your dream and what achieving it means to you..."
               rows={4}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              required
               maxLength={500}
             />
+            <p className="text-sm text-gray-500 mt-1">
+              This description will be reviewed by the NGO team for approval.
+            </p>
           </div>
 
           <div>
@@ -202,6 +206,16 @@ const MintDream = () => {
             <p className="text-sm text-gray-500 mt-1">
               The amount of SUI tokens you need to achieve your dream
             </p>
+          </div>
+
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <h4 className="font-medium text-blue-800 mb-2">Approval Process</h4>
+            <ul className="text-sm text-blue-700 space-y-1">
+              <li>• Your dream will be reviewed by the NGO team</li>
+              <li>• Once approved, others can pledge to support your dream</li>
+              <li>• You'll receive a notification when your dream is approved</li>
+              <li>• You can track the approval status in your dreams list</li>
+            </ul>
           </div>
 
           <div className="flex gap-4 pt-4">

@@ -1,16 +1,16 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useCurrentAccount, useSignAndExecuteTransaction } from '@mysten/dapp-kit'
-import { Building, Plus, DollarSign, Clock, CheckCircle, Loader2 } from 'lucide-react'
-import { createNGOVault, recordMonthlyContribution, releaseMatch, getUserVaults, mistToSui } from '../utils/blockchain'
-import { isPackageConfigured } from '../constants/contracts'
+import { Building, Plus, DollarSign, Clock, CheckCircle, Loader2, Eye, CheckCircle2, XCircle } from 'lucide-react'
+import { createNGOVault, recordMonthlyContribution, releaseMatch, getUserVaults, mistToSui, getPendingDreams, getApprovedDreams, approveDream, rejectDream } from '../utils/blockchain'
+import { isPackageConfigured, hasAdminAccess } from '../constants/contracts'
 import toast from 'react-hot-toast'
 
 const NGODashboard = () => {
   const currentAccount = useCurrentAccount()
   const { mutate: signAndExecute } = useSignAndExecuteTransaction()
   
-  const [activeTab, setActiveTab] = useState('create') // create, vaults
+  const [activeTab, setActiveTab] = useState('pending') // pending, approved, vaults, create
   const [formData, setFormData] = useState({
     dreamId: '',
     matchAmount: '',
@@ -19,27 +19,64 @@ const NGODashboard = () => {
   const [isLoading, setIsLoading] = useState(false)
   const [vaults, setVaults] = useState([])
   const [loadingVaults, setLoadingVaults] = useState(false)
+  const [pendingDreams, setPendingDreams] = useState([])
+  const [approvedDreams, setApprovedDreams] = useState([])
+  const [loadingDreams, setLoadingDreams] = useState(false)
 
   useEffect(() => {
-    if (currentAccount && isPackageConfigured()) {
-      loadVaults()
+    if (currentAccount && isPackageConfigured() && hasAdminAccess(currentAccount)) {
+      loadData()
     }
   }, [currentAccount, activeTab])
+
+  const loadData = async () => {
+    if (activeTab === 'vaults') {
+      await loadVaults()
+    } else if (activeTab === 'pending') {
+      await loadPendingDreams()
+    } else if (activeTab === 'approved') {
+      await loadApprovedDreams()
+    }
+  }
+
+  const loadPendingDreams = async () => {
+    setLoadingDreams(true)
+    try {
+      const dreams = await getPendingDreams()
+      setPendingDreams(dreams)
+    } catch (error) {
+      console.error('Error loading pending dreams:', error)
+      toast.error('Failed to load pending dreams')
+    } finally {
+      setLoadingDreams(false)
+    }
+  }
+
+  const loadApprovedDreams = async () => {
+    setLoadingDreams(true)
+    try {
+      const dreams = await getApprovedDreams()
+      setApprovedDreams(dreams)
+    } catch (error) {
+      console.error('Error loading approved dreams:', error)
+      toast.error('Failed to load approved dreams')
+    } finally {
+      setLoadingDreams(false)
+    }
+  }
 
   const loadVaults = async () => {
     setLoadingVaults(true)
     try {
       const vaultObjects = await getUserVaults(currentAccount.address)
-      console.log('Raw vault objects:', vaultObjects) // Debug log
       
       // Transform blockchain objects to our vault format
       const transformedVaults = vaultObjects.map(obj => {
         const fields = obj.data?.content?.fields || {}
-        console.log('Vault fields:', fields) // Debug log
         
         return {
           id: obj.data?.objectId,
-          dreamId: fields.dreamID || 'unknown', // Note: dreamID is the correct field name
+          dreamId: fields.dreamID || 'unknown',
           matchAmount: parseInt(fields.matchAmount || '0'),
           minMonths: parseInt(fields.minMonths || '0'),
           fulfilledMonths: parseInt(fields.fulfilledMonths || '0'),
@@ -49,7 +86,6 @@ const NGODashboard = () => {
         }
       })
       
-      console.log('Transformed vaults:', transformedVaults) // Debug log
       setVaults(transformedVaults)
     } catch (error) {
       console.error('Error loading vaults:', error)
@@ -115,6 +151,25 @@ const NGODashboard = () => {
     }
   }
 
+  const handleApproveDream = async (dreamId) => {
+    try {
+      await approveDream(signAndExecute, dreamId)
+      await loadPendingDreams()
+      await loadApprovedDreams()
+    } catch (error) {
+      console.error('Error approving dream:', error)
+    }
+  }
+
+  const handleRejectDream = async (dreamId) => {
+    try {
+      await rejectDream(signAndExecute, dreamId)
+      await loadPendingDreams()
+    } catch (error) {
+      console.error('Error rejecting dream:', error)
+    }
+  }
+
   const handleRecordContribution = async (vaultId, dreamId) => {
     if (!currentAccount) {
       toast.error('Please connect your wallet first')
@@ -128,7 +183,7 @@ const NGODashboard = () => {
 
     try {
       await recordMonthlyContribution(signAndExecute, vaultId, dreamId)
-      await loadVaults() // Reload vaults after recording contribution
+      await loadVaults()
       toast.success('Monthly contribution recorded!')
     } catch (error) {
       console.error('Error recording contribution:', error)
@@ -149,7 +204,7 @@ const NGODashboard = () => {
 
     try {
       await releaseMatch(signAndExecute, vaultId, dreamId)
-      await loadVaults() // Reload vaults after releasing match
+      await loadVaults()
       toast.success('Match released successfully!')
     } catch (error) {
       console.error('Error releasing match:', error)
@@ -168,6 +223,23 @@ const NGODashboard = () => {
           </p>
           <Link to="/" className="btn-primary">
             Go Home to Connect
+          </Link>
+        </div>
+      </div>
+    )
+  }
+
+  if (!hasAdminAccess(currentAccount)) {
+    return (
+      <div className="max-w-2xl mx-auto text-center">
+        <div className="card p-8">
+          <Building className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">Access Denied</h2>
+          <p className="text-gray-600 mb-6">
+            Only the NGO admin wallet can access this dashboard.
+          </p>
+          <Link to="/" className="btn-primary">
+            Go Back Home
           </Link>
         </div>
       </div>
@@ -197,14 +269,14 @@ const NGODashboard = () => {
       <div className="text-center">
         <div className="inline-flex items-center px-4 py-2 bg-white/10 backdrop-blur-sm rounded-full text-white/80 text-sm font-medium mb-4">
           <Building className="w-4 h-4 mr-2" />
-          NGO Dashboard
+          NGO Admin Dashboard
         </div>
         
         <h1 className="text-3xl font-bold text-white mb-2">
           NGO Partner Dashboard
         </h1>
         <p className="text-white/80">
-          Create matching vaults and support dreams in your community
+          Manage dream approvals and create matching vaults
         </p>
       </div>
 
@@ -212,18 +284,28 @@ const NGODashboard = () => {
       <div className="flex justify-center">
         <div className="bg-white/10 backdrop-blur-sm rounded-lg p-1">
           <button
-            onClick={() => setActiveTab('create')}
-            className={`px-6 py-2 rounded-lg font-medium transition-colors ${
-              activeTab === 'create'
+            onClick={() => setActiveTab('pending')}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+              activeTab === 'pending'
                 ? 'bg-white text-gray-800'
                 : 'text-white/80 hover:text-white'
             }`}
           >
-            Create Vault
+            Pending Dreams ({pendingDreams.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('approved')}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+              activeTab === 'approved'
+                ? 'bg-white text-gray-800'
+                : 'text-white/80 hover:text-white'
+            }`}
+          >
+            Approved Dreams ({approvedDreams.length})
           </button>
           <button
             onClick={() => setActiveTab('vaults')}
-            className={`px-6 py-2 rounded-lg font-medium transition-colors ${
+            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
               activeTab === 'vaults'
                 ? 'bg-white text-gray-800'
                 : 'text-white/80 hover:text-white'
@@ -231,8 +313,193 @@ const NGODashboard = () => {
           >
             My Vaults ({vaults.length})
           </button>
+          <button
+            onClick={() => setActiveTab('create')}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+              activeTab === 'create'
+                ? 'bg-white text-gray-800'
+                : 'text-white/80 hover:text-white'
+            }`}
+          >
+            Create Vault
+          </button>
         </div>
       </div>
+
+      {/* Pending Dreams Tab */}
+      {activeTab === 'pending' && (
+        <div className="space-y-6">
+          {loadingDreams ? (
+            <div className="flex justify-center items-center py-12">
+              <Loader2 className="w-8 h-8 animate-spin text-white" />
+            </div>
+          ) : pendingDreams.length > 0 ? (
+            <div className="grid md:grid-cols-2 gap-6">
+              {pendingDreams.map((dreamObj) => {
+                const fields = dreamObj.data?.content?.fields || {}
+                const dream = {
+                  id: dreamObj.data?.objectId,
+                  title: fields.title || 'Untitled Dream',
+                  owner: fields.owner || 'unknown',
+                  goalAmount: parseInt(fields.goalAmount || '0'),
+                  savedAmount: parseInt(fields.savedAmount || '0'),
+                  description: fields.description || 'No description',
+                }
+                
+                return (
+                  <div key={dream.id} className="card p-6">
+                    <div className="flex items-start justify-between mb-4">
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-800">
+                          {dream.title}
+                        </h3>
+                        <p className="text-sm text-gray-500">
+                          By: {dream.owner.slice(0, 6)}...{dream.owner.slice(-4)}
+                        </p>
+                      </div>
+                      <div className="px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                        Pending
+                      </div>
+                    </div>
+
+                    <div className="space-y-3 mb-4">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">Goal Amount:</span>
+                        <span className="font-medium">{mistToSui(dream.goalAmount).toFixed(2)} SUI</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">Description:</span>
+                      </div>
+                      <p className="text-sm text-gray-600">{dream.description}</p>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleApproveDream(dream.id)}
+                        className="btn-primary flex-1 py-2 text-sm"
+                      >
+                        <CheckCircle2 className="w-4 h-4 mr-1" />
+                        Approve
+                      </button>
+                      <button
+                        onClick={() => handleRejectDream(dream.id)}
+                        className="btn-secondary flex-1 py-2 text-sm"
+                      >
+                        <XCircle className="w-4 h-4 mr-1" />
+                        Reject
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            <div className="text-center py-12">
+              <div className="card p-8 max-w-md mx-auto">
+                <Eye className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-xl font-semibold text-gray-800 mb-2">
+                  No Pending Dreams
+                </h3>
+                <p className="text-gray-600">
+                  All dreams have been reviewed or no new dreams have been submitted.
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Approved Dreams Tab */}
+      {activeTab === 'approved' && (
+        <div className="space-y-6">
+          {loadingDreams ? (
+            <div className="flex justify-center items-center py-12">
+              <Loader2 className="w-8 h-8 animate-spin text-white" />
+            </div>
+          ) : approvedDreams.length > 0 ? (
+            <div className="grid md:grid-cols-2 gap-6">
+              {approvedDreams.map((dreamObj) => {
+                const fields = dreamObj.data?.content?.fields || {}
+                const dream = {
+                  id: dreamObj.data?.objectId,
+                  title: fields.title || 'Untitled Dream',
+                  owner: fields.owner || 'unknown',
+                  goalAmount: parseInt(fields.goalAmount || '0'),
+                  savedAmount: parseInt(fields.savedAmount || '0'),
+                  description: fields.description || 'No description',
+                  isComplete: fields.isComplete || false,
+                }
+                
+                return (
+                  <div key={dream.id} className="card p-6">
+                    <div className="flex items-start justify-between mb-4">
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-800">
+                          {dream.title}
+                        </h3>
+                        <p className="text-sm text-gray-500">
+                          By: {dream.owner.slice(0, 6)}...{dream.owner.slice(-4)}
+                        </p>
+                      </div>
+                      <div className={`px-2 py-1 rounded-full text-xs font-medium ${
+                        dream.isComplete ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'
+                      }`}>
+                        {dream.isComplete ? 'Completed' : 'Approved'}
+                      </div>
+                    </div>
+
+                    <div className="space-y-3 mb-4">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">Goal Amount:</span>
+                        <span className="font-medium">{mistToSui(dream.goalAmount).toFixed(2)} SUI</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">Raised:</span>
+                        <span className="font-medium">{mistToSui(dream.savedAmount).toFixed(2)} SUI</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">Progress:</span>
+                        <span className="font-medium">
+                          {dream.goalAmount > 0 ? ((dream.savedAmount / dream.goalAmount) * 100).toFixed(1) : 0}%
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="progress-bar mb-4">
+                      <div 
+                        className="progress-fill"
+                        style={{ width: `${dream.goalAmount > 0 ? Math.min((dream.savedAmount / dream.goalAmount) * 100, 100) : 0}%` }}
+                      ></div>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setActiveTab('create')}
+                        className="btn-primary flex-1 py-2 text-sm"
+                      >
+                        <Plus className="w-4 h-4 mr-1" />
+                        Create Vault
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            <div className="text-center py-12">
+              <div className="card p-8 max-w-md mx-auto">
+                <CheckCircle2 className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-xl font-semibold text-gray-800 mb-2">
+                  No Approved Dreams
+                </h3>
+                <p className="text-gray-600">
+                  No dreams have been approved yet. Check the pending dreams tab.
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Create Vault Tab */}
       {activeTab === 'create' && (
@@ -257,7 +524,7 @@ const NGODashboard = () => {
                   required
                 />
                 <p className="text-sm text-gray-500 mt-1">
-                  You can find dream IDs on the dreams page
+                  You can find dream IDs on the approved dreams page
                 </p>
               </div>
 

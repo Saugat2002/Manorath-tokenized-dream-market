@@ -3,6 +3,9 @@
 // Deployed package ID from sui client publish
 const PACKAGE_ID = '0x399526a6033a3193843567e304ded30d1822b4887d630c4f54680a8ee9e3ab41'
 
+// Admin wallet address (the wallet that has AdminCap)
+const ADMIN_WALLET_ADDRESS = '0xf446298aa6a47f9b619ec394eb5764c3763a76629aa14c94394663d24733eab4'
+
 // AdminCap created during deployment
 const ADMIN_CAP_ID = '0xe027c3a183bbb96425b02987bc1330de72aa246ca903a4c5ad701b3c8d19883a'
 
@@ -10,7 +13,8 @@ export const CONTRACTS = {
   DREAM_NFT: `${PACKAGE_ID}::DreamNFT`,
   NGO_VAULT: `${PACKAGE_ID}::NGOVault`,
   PACKAGE_ID,
-  ADMIN_CAP_ID
+  ADMIN_CAP_ID,
+  ADMIN_WALLET_ADDRESS
 }
 
 export const NETWORK = {
@@ -31,4 +35,14 @@ export const isPackageConfigured = () => {
     CONTRACTS.PACKAGE_ID.startsWith('0x') &&
     CONTRACTS.PACKAGE_ID.length === 66
   )
+}
+
+// Helper to check if user is admin
+export const isAdmin = (walletAddress) => {
+  return walletAddress === ADMIN_WALLET_ADDRESS
+}
+
+// Helper to check if user has admin access
+export const hasAdminAccess = (currentAccount) => {
+  return currentAccount && isAdmin(currentAccount.address)
 }

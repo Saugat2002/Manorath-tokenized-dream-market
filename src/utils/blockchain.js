@@ -50,6 +50,31 @@ export const getAllCompletedDreams = async () => {
   }
 }
 
+// Get all pending dreams (not approved yet)
+export const getPendingDreams = async () => {
+  try {
+    const allDreams = await getAllDreams()
+    return allDreams.filter(obj => 
+      obj.data?.content?.fields?.isApproved === false && 
+      obj.data?.content?.fields?.isComplete === false
+    )
+  } catch (error) {
+    console.error('Error fetching pending dreams:', error)
+    return []
+  }
+}
+
+// Get all approved dreams
+export const getApprovedDreams = async () => {
+  try {
+    const allDreams = await getAllDreams()
+    return allDreams.filter(obj => obj.data?.content?.fields?.isApproved === true)
+  } catch (error) {
+    console.error('Error fetching approved dreams:', error)
+    return []
+  }
+}
+
 // Get all NGO vaults from the blockchain
 export const getAllNGOVaults = async () => {
   try {
@@ -72,7 +97,7 @@ export const getAllNGOVaults = async () => {
 }
 
 // Mint a new dream NFT
-export const mintDream = async (signAndExecute, title, goalAmount) => {
+export const mintDream = async (signAndExecute, title, goalAmount, description) => {
   try {
     const tx = new Transaction()
     
@@ -81,6 +106,7 @@ export const mintDream = async (signAndExecute, title, goalAmount) => {
       arguments: [
         tx.pure.string(title),
         tx.pure.u64(suiToMist(goalAmount)),
+        tx.pure.string(description),
       ],
     })
 
@@ -88,7 +114,7 @@ export const mintDream = async (signAndExecute, title, goalAmount) => {
       transaction: tx,
     })
 
-    toast.success('Dream NFT minted successfully!')
+    toast.success('Dream NFT minted successfully! Waiting for NGO approval.')
     return result
   } catch (error) {
     console.error('Error minting dream:', error)
@@ -97,7 +123,59 @@ export const mintDream = async (signAndExecute, title, goalAmount) => {
   }
 }
 
-// Pledge to a dream
+// Admin function to approve a dream
+export const approveDream = async (signAndExecute, dreamId) => {
+  try {
+    const tx = new Transaction()
+    
+    tx.moveCall({
+      target: `${CONTRACTS.PACKAGE_ID}::DreamNFT::approveDream`,
+      arguments: [
+        tx.object(CONTRACTS.ADMIN_CAP_ID),
+        tx.object(dreamId),
+      ],
+    })
+
+    const result = await signAndExecute({
+      transaction: tx,
+    })
+
+    toast.success('Dream approved successfully!')
+    return result
+  } catch (error) {
+    console.error('Error approving dream:', error)
+    toast.error('Failed to approve dream: ' + error.message)
+    throw error
+  }
+}
+
+// Admin function to reject a dream
+export const rejectDream = async (signAndExecute, dreamId) => {
+  try {
+    const tx = new Transaction()
+    
+    tx.moveCall({
+      target: `${CONTRACTS.PACKAGE_ID}::DreamNFT::rejectDream`,
+      arguments: [
+        tx.object(CONTRACTS.ADMIN_CAP_ID),
+        tx.object(dreamId),
+      ],
+    })
+
+    const result = await signAndExecute({
+      transaction: tx,
+    })
+
+    toast.success('Dream rejected successfully!')
+    return result
+  } catch (error) {
+    console.error('Error rejecting dream:', error)
+    toast.error('Failed to reject dream: ' + error.message)
+    throw error
+  }
+}
+
+// Pledge to a dream (only approved dreams)
 export const pledgeToDream = async (signAndExecute, dreamId, amount) => {
   try {
     const tx = new Transaction()
@@ -118,12 +196,16 @@ export const pledgeToDream = async (signAndExecute, dreamId, amount) => {
     return result
   } catch (error) {
     console.error('Error pledging to dream:', error)
-    toast.error('Failed to pledge: ' + error.message)
+    if (error.message.includes('1')) {
+      toast.error('This dream is not approved for pledging yet.')
+    } else {
+      toast.error('Failed to pledge: ' + error.message)
+    }
     throw error
   }
 }
 
-// Create NGO vault
+// Create NGO vault (admin only)
 export const createNGOVault = async (signAndExecute, dreamId, matchAmount, minMonths) => {
   try {
     const tx = new Transaction()
@@ -177,7 +259,7 @@ export const recordMonthlyContribution = async (signAndExecute, vaultId, dreamId
   }
 }
 
-// Release match from NGO vault
+// Release match from NGO vault (admin only)
 export const releaseMatch = async (signAndExecute, vaultId, dreamId) => {
   try {
     const tx = new Transaction()
