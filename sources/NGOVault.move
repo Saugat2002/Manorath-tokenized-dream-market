@@ -3,11 +3,6 @@ module final_project::NGOVault;
 use final_project::DreamNFT;
 use sui::event;
 
-// use sui::transfer;
-// use sui::balance;
-// use sui::object::{Self, UID};
-// use sui::tx_context::{Self, TxContext};
-
 public struct NGOVault has key {
     id: UID,
     ngo: address,
@@ -22,6 +17,12 @@ public struct MatchReleased has copy, drop {
     dreamID: ID,
     amount: u64,
     matchedBy: address,
+}
+
+public struct VaultCreated has copy, drop {
+    dreamID: ID,
+    ngo: address,
+    id: ID,
 }
 
 public entry fun createVault(
@@ -41,6 +42,12 @@ public entry fun createVault(
         fulfilledMonths: 0,
         isActive: true,
     };
+
+    event::emit(VaultCreated {
+        id: object::id(&vault),
+        ngo: vault.ngo,
+        dreamID: dreamID,
+    });
     transfer::transfer(vault, ctx.sender());
 }
 
@@ -65,9 +72,9 @@ public entry fun releaseMatch(
     DreamNFT::addMatchAmount(dream, vault.matchAmount);
     vault.isActive = false;
 
-    event::emit(MatchReleased {
-        dreamID: object::id(dream),
-        amount: vault.matchAmount,
-        matchedBy: vault.ngo,
-    });
+    // event::emit(MatchReleased {
+    //     dreamID: object::id(&DreamNFT::getDreamID(dream)),
+    //     amount: vault.matchAmount,
+    //     matchedBy: vault.ngo,
+    // });
 }

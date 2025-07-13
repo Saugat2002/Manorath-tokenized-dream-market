@@ -1,12 +1,7 @@
 module final_project::DreamNFT;
 
 use std::string;
-
-// use sui::balance;
-// use sui::sui;
-// use sui::transfer;
-// use sui::object::UID;
-// use sui::tx_context::TxContext;
+use sui::event;
 
 public struct DreamNFT has key {
     id: UID,
@@ -29,6 +24,18 @@ public struct AdminCap has key {
     id: UID,
 }
 
+public struct MintedNFT has copy, drop {
+    dreamID: ID,
+    owner: address,
+    title: string::String,
+    goalAmount: u64,
+    description: string::String,
+}
+
+public struct Pledged has copy, drop {
+    pledgedAmount: u64,
+}
+
 // Initialize admin capability
 fun init(ctx: &mut TxContext) {
     let adminCap = AdminCap {
@@ -46,7 +53,12 @@ public fun getDreamID(dream: &DreamNFT): ID {
     object::id(dream)
 }
 
-public entry fun mintDream(title: string::String, goalAmount: u64, description: string::String, ctx: &mut TxContext) {
+public entry fun mintDream(
+    title: string::String,
+    goalAmount: u64,
+    description: string::String,
+    ctx: &mut TxContext,
+) {
     let dream = DreamNFT {
         id: object::new(ctx),
         owner: ctx.sender(),
@@ -57,6 +69,14 @@ public entry fun mintDream(title: string::String, goalAmount: u64, description: 
         isApproved: false,
         description: description,
     };
+
+    event::emit(MintedNFT {
+        dreamID: object::id(&dream),
+        owner: dream.owner,
+        title: dream.title,
+        goalAmount: dream.goalAmount,
+        description: dream.description,
+    });
     transfer::transfer(dream, ctx.sender());
 }
 
@@ -77,6 +97,9 @@ public entry fun pledgeToDream(nft: &mut DreamNFT, amount: u64) {
     if (nft.savedAmount >= nft.goalAmount) {
         nft.isComplete = true;
     };
+    event::emit(Pledged {
+        pledgedAmount: amount,
+    });
 }
 
 public fun isComplete(nft: &DreamNFT): bool {
