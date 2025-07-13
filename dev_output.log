@@ -1,0 +1,28 @@
+
+> manorath-dream-market@0.1.0 dev
+> vite
+
+
+  VITE v4.5.14  ready in 637 ms
+
+  ➜  Local:   http://localhost:3000/
+  ➜  Network: use --host to expose
+  ➜  press h to show help
+2:54:27 PM [vite] hmr update /src/components/Navigation.jsx, /src/index.css
+2:55:20 PM [vite] page reload src/main.jsx
+2:56:04 PM [vite] hmr update /src/main.jsx, /src/index.css
+2:56:19 PM [vite] page reload src/main.jsx
+2:56:20 PM [vite] hmr update /src/pages/Home.jsx, /src/index.css
+2:56:20 PM [vite] hmr update /src/components/Navigation.jsx, /src/index.css
+2:56:20 PM [vite] hmr update /src/components/ErrorBoundary.jsx, /src/index.css
+2:56:20 PM [vite] hmr update /src/main.jsx, /src/index.css
+2:56:20 PM [vite] hmr update /src/pages/Home.jsx, /src/index.css
+2:56:20 PM [vite] hmr update /src/components/Navigation.jsx, /src/index.css
+2:56:20 PM [vite] hmr update /src/components/ErrorBoundary.jsx, /src/index.css
+2:56:37 PM [vite] hmr update /src/main.jsx, /src/index.css
+2:56:58 PM [vite] hmr update /src/components/Navigation.jsx, /src/index.css
+2:57:33 PM [vite] hmr update /src/pages/Home.jsx, /src/index.css
+2:57:56 PM [vite] page reload src/main.jsx
+2:58:19 PM [vite] hmr update /src/components/Navigation.jsx, /src/index.css
+2:58:51 PM [vite] hmr update /src/pages/Home.jsx, /src/index.css
+2:59:28 PM [vite] hmr update /src/pages/MintDream.jsx, /src/index.css

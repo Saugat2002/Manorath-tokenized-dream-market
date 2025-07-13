@@ -1,0 +1,42 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    margin: 0;
+    padding: 0;
+  }
+}
+
+@layer components {
+  .gradient-text {
+    @apply bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent;
+  }
+  
+  .card {
+    @apply bg-white/90 backdrop-blur-sm rounded-xl shadow-lg border border-white/20;
+  }
+  
+  .btn-primary {
+    @apply bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-medium px-4 py-2 rounded-lg transition-all duration-200 shadow-md hover:shadow-lg flex items-center justify-center;
+  }
+  
+  .btn-secondary {
+    @apply bg-white/80 hover:bg-white text-gray-800 font-medium px-4 py-2 rounded-lg transition-all duration-200 shadow-md hover:shadow-lg backdrop-blur-sm flex items-center justify-center;
+  }
+  
+  .progress-bar {
+    @apply w-full bg-gray-200 rounded-full h-2.5 overflow-hidden;
+  }
+  
+  .progress-fill {
+    @apply h-2.5 bg-gradient-to-r from-blue-500 to-purple-500 transition-all duration-300 ease-out;
+  }
+}
