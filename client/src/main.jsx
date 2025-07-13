@@ -9,7 +9,7 @@ import { getFullnodeUrl } from '@mysten/sui/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 import App from './App.jsx'
-import ErrorBoundary from './components/ErrorBoundary.js'
+import ErrorBoundary from './components/ErrorBoundary.jsx'
 import './index.css'
 
 // Setup QueryClient for React Query
