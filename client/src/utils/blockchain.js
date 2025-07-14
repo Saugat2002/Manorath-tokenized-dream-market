@@ -8,6 +8,10 @@ const suiClient = new SuiClient({
   url: getFullnodeUrl('testnet'),
 })
 
+function byteArrayToHex(bytes) {
+  return '0x' + bytes.map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
 // Convert SUI to MIST
 export const suiToMist = (sui) => {
   return Math.floor(sui * MIST_PER_SUI)
@@ -18,21 +22,48 @@ export const mistToSui = (mist) => {
   return mist / MIST_PER_SUI
 }
 
-// Get all dream NFTs from the blockchain
+// Admin function to get all dream IDs from the registry
+export const getAllDreamIDs = async () => {
+  try {
+    const registry = await suiClient.getObject({
+  id: CONTRACTS.DREAM_REGISTRY_ID,
+  options: { showContent: true },
+});
+
+const allDreams = registry.data?.content?.fields?.allDreams;
+return allDreams;
+console.log(allDreams);
+  } catch (error) {
+    console.error('Error fetching all dream IDs:', error);
+    return [];
+  }
+};
+
+// Get all dream NFTs from the blockchain using admin function
 export const getAllDreams = async () => {
   try {
-    const response = await suiClient.queryObjects({
-      filter: {
-        StructType: `${CONTRACTS.PACKAGE_ID}::DreamNFT::DreamNFT`
-      },
-      options: {
-        showType: true,
-        showContent: true,
-        showOwner: true,
-        showDisplay: true,
+    // First get all dream IDs from the registry
+    const dreamIDs = await getAllDreamIDs()
+    console.log('Dream IDs:', dreamIDs)
+    
+    if (!dreamIDs || dreamIDs.length === 0) {
+      return []
+    }
+    
+    // Then fetch each dream object
+    const dreams = []
+    for (const dreamId of dreamIDs) {
+      try {
+        const dream = await getObjectDetails(dreamId)
+        if (dream && dream.data?.type === `${CONTRACTS.PACKAGE_ID}::DreamNFT::DreamNFT`) {
+          dreams.push(dream)
+        }
+      } catch (error) {
+        console.error(`Error fetching dream ${dreamId}:`, error)
       }
-    })
-    return response.data
+    }
+    
+    return dreams
   } catch (error) {
     console.error('Error fetching all dreams:', error)
     return []
@@ -104,6 +135,7 @@ export const mintDream = async (signAndExecute, title, goalAmount, description) 
     tx.moveCall({
       target: `${CONTRACTS.PACKAGE_ID}::DreamNFT::mintDream`,
       arguments: [
+        tx.object(CONTRACTS.DREAM_REGISTRY_ID),
         tx.pure.string(title),
         tx.pure.u64(suiToMist(goalAmount)),
         tx.pure.string(description),
@@ -114,11 +146,11 @@ export const mintDream = async (signAndExecute, title, goalAmount, description) 
       transaction: tx,
     })
 
-    toast.success('Dream NFT minted successfully! Waiting for NGO approval.')
+    toast.success('Dream created successfully!')
     return result
   } catch (error) {
     console.error('Error minting dream:', error)
-    toast.error('Failed to mint dream: ' + error.message)
+    toast.error('Failed to create dream: ' + error.message)
     throw error
   }
 }
@@ -308,8 +340,16 @@ export const getOwnedObjects = async (address) => {
 // Get object details
 export const getObjectDetails = async (objectId) => {
   try {
+    let id = objectId
+    
+    // If it's a byte array, convert to hex string
+    if (Array.isArray(objectId)) {
+      const hexString = objectId.map(byte => byte.toString(16).padStart(2, '0')).join('')
+      id = '0x' + hexString
+    }
+    
     const object = await suiClient.getObject({
-      id: objectId,
+      id: id,
       options: {
         showType: true,
         showContent: true,
@@ -326,18 +366,20 @@ export const getObjectDetails = async (objectId) => {
 
 // Helper function to filter dream NFTs from owned objects
 export const filterDreamNFTs = (objects) => {
-  return objects.filter(obj => 
-    obj.data?.type?.includes('DreamNFT') || 
-    obj.data?.type?.includes(`${CONTRACTS.PACKAGE_ID}::DreamNFT::DreamNFT`)
-  )
+  return objects.filter(obj => {
+    const type = obj.data?.type
+    if (!type) return false
+    return type === `${CONTRACTS.PACKAGE_ID}::DreamNFT::DreamNFT`
+  })
 }
 
 // Helper function to filter NGO vaults from owned objects
 export const filterNGOVaults = (objects) => {
-  return objects.filter(obj => 
-    obj.data?.type?.includes('NGOVault') || 
-    obj.data?.type?.includes(`${CONTRACTS.PACKAGE_ID}::NGOVault::NGOVault`)
-  )
+  return objects.filter(obj => {
+    const type = obj.data?.type
+    if (!type) return false
+    return type === `${CONTRACTS.PACKAGE_ID}::NGOVault::NGOVault`
+  })
 }
 
 // Get all dreams created by a user
@@ -362,4 +404,4 @@ export const getUserVaults = async (address) => {
   }
 }
 
-export { suiClient } 
+export { suiClient }

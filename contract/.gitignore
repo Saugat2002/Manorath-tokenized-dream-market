@@ -1,1 +1,29 @@
-build/*
+# Ignore build artifacts
+build/
+.DS_Store
+
+# Ignore lock files
+locks/
+
+# Ignore Move bytecode and debug info
+**/bytecode_modules/
+**/debug_info/
+
+# Ignore editor configs
+*.swp
+*.swo
+*.swn
+*.bak
+*.tmp
+
+# Ignore VSCode settings
+.vscode/
+
+# Ignore logs
+*.log
+
+# Ignore testnet/localnet temp state
+.sui/
+
+# Ignore compiled move packages (optional)
+.move/

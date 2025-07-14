@@ -1,0 +1,262 @@
+import { useState, useEffect } from 'react'
+import { Award, Calendar, DollarSign, User, Search, Trophy, Star, Loader2, TrendingUp } from 'lucide-react'
+import { useCurrentAccount } from '@mysten/dapp-kit'
+import { getAllCompletedDreams, mistToSui } from '../utils/blockchain'
+import { isPackageConfigured } from '../constants/contracts'
+import toast from 'react-hot-toast'
+
+const LegacyWall = () => {
+  const currentAccount = useCurrentAccount()
+  const [completedDreams, setCompletedDreams] = useState([])
+  const [searchTerm, setSearchTerm] = useState('')
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (isPackageConfigured()) {
+      loadCompletedDreams()
+    } else {
+      setLoading(false)
+    }
+  }, [])
+
+  const loadCompletedDreams = async () => {
+    setLoading(true)
+    try {
+      const completedDreamObjects = await getAllCompletedDreams()
+      
+      // Transform blockchain objects to our dream format
+      const completedDreamData = completedDreamObjects.map(obj => {
+        const fields = obj.data?.content?.fields || {}
+        return {
+          id: obj.data?.objectId,
+          title: fields.title || 'Untitled Dream',
+          owner: fields.owner || 'unknown',
+          goalAmount: parseInt(fields.goalAmount || '0'),
+          savedAmount: parseInt(fields.savedAmount || '0'),
+          isComplete: fields.isComplete || false,
+          completedAt: new Date().toISOString(), // We don't have completion timestamp in contract
+          description: fields.description || 'No description provided',
+          category: 'General', // Category not implemented in contract
+        }
+      })
+
+      setCompletedDreams(completedDreamData)
+    } catch (error) {
+      console.error('Error loading completed dreams:', error)
+      toast.error('Failed to load completed dreams')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const filteredDreams = completedDreams.filter(dream =>
+    dream.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    dream.description.toLowerCase().includes(searchTerm.toLowerCase())
+  )
+
+  const truncateAddress = (address) => {
+    if (!address || address.length < 10) return address
+    return `${address.slice(0, 8)}...${address.slice(-6)}`
+  }
+
+  const getCategoryColor = (category) => {
+    const colors = {
+      Business: 'bg-blue-100 text-blue-800 border-blue-200',
+      Health: 'bg-red-100 text-red-800 border-red-200',
+      Education: 'bg-purple-100 text-purple-800 border-purple-200',
+      Community: 'bg-green-100 text-green-800 border-green-200',
+      Arts: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+      Personal: 'bg-gray-100 text-gray-800 border-gray-200',
+      General: 'bg-gray-100 text-gray-800 border-gray-200',
+    }
+    return colors[category] || 'bg-gray-100 text-gray-800 border-gray-200'
+  }
+
+  const totalDreams = completedDreams.length
+  const totalAmount = completedDreams.reduce((sum, dream) => sum + dream.savedAmount, 0)
+  const averageAmount = totalDreams > 0 ? totalAmount / totalDreams : 0
+
+  if (!isPackageConfigured()) {
+    return (
+      <div className="min-h-screen bg-gray-50 py-12">
+        <div className="max-w-2xl mx-auto px-4">
+          <div className="card p-8 text-center">
+            <Award className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Contract Not Deployed</h2>
+            <p className="text-gray-600 mb-6">
+              The smart contract needs to be deployed first to view completed dreams.
+            </p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50 py-12">
+      <div className="container mx-auto px-4">
+        {/* Header */}
+        <div className="section-header">
+          <div className="inline-flex items-center px-4 py-2 bg-primary-100 text-primary-800 rounded-full text-sm font-medium mb-4 border border-primary-200">
+            <Award className="w-4 h-4 mr-2" />
+            Legacy Wall
+          </div>
+          
+          <h1 className="section-title">
+            Wall of Achieved Dreams
+          </h1>
+          <p className="section-subtitle">
+            Celebrating the dreams that became reality through community support and determination
+          </p>
+        </div>
+
+        {/* Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <div className="card p-6 text-center">
+            <Trophy className="w-12 h-12 text-yellow-600 mx-auto mb-4" />
+            <div className="text-3xl font-bold text-gray-900 mb-1">
+              {totalDreams}
+            </div>
+            <div className="text-gray-600">Dreams Completed</div>
+          </div>
+          
+          <div className="card p-6 text-center">
+            <DollarSign className="w-12 h-12 text-primary-600 mx-auto mb-4" />
+            <div className="text-3xl font-bold text-gray-900 mb-1">
+              {mistToSui(totalAmount).toFixed(0)}
+            </div>
+            <div className="text-gray-600">Total SUI Raised</div>
+          </div>
+          
+          <div className="card p-6 text-center">
+            <TrendingUp className="w-12 h-12 text-green-600 mx-auto mb-4" />
+            <div className="text-3xl font-bold text-gray-900 mb-1">
+              {mistToSui(averageAmount).toFixed(0)}
+            </div>
+            <div className="text-gray-600">Average per Dream</div>
+          </div>
+          
+          <div className="card p-6 text-center">
+            <Star className="w-12 h-12 text-purple-600 mx-auto mb-4" />
+            <div className="text-3xl font-bold text-gray-900 mb-1">
+              {filteredDreams.length}
+            </div>
+            <div className="text-gray-600">Dreams Displayed</div>
+          </div>
+        </div>
+
+        {/* Search */}
+        <div className="max-w-md mx-auto mb-8">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <input
+              type="text"
+              placeholder="Search completed dreams..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors duration-200"
+            />
+          </div>
+        </div>
+
+        {/* Dreams Grid */}
+        {loading ? (
+          <div className="flex justify-center items-center py-12">
+            <Loader2 className="w-8 h-8 animate-spin text-primary-600" />
+          </div>
+        ) : filteredDreams.length > 0 ? (
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredDreams.map((dream) => (
+              <div key={dream.id} className="card card-hover p-6">
+                {/* Header */}
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex-1">
+                    <h3 className="text-xl font-semibold text-gray-900 mb-2 leading-tight">
+                      {dream.title}
+                    </h3>
+                    <div className="flex items-center text-sm text-gray-500">
+                      <User className="w-4 h-4 mr-1" />
+                      {truncateAddress(dream.owner)}
+                    </div>
+                  </div>
+                  <div className={`status-badge ${getCategoryColor(dream.category)}`}>
+                    {dream.category}
+                  </div>
+                </div>
+
+                {/* Achievement Badge */}
+                <div className="flex items-center justify-center mb-6">
+                  <div className="w-16 h-16 bg-yellow-500 rounded-full flex items-center justify-center shadow-md">
+                    <Trophy className="w-8 h-8 text-white" />
+                  </div>
+                </div>
+
+                {/* Stats */}
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div className="text-center">
+                    <div className="text-lg font-bold text-gray-900">
+                      {mistToSui(dream.savedAmount).toFixed(2)}
+                    </div>
+                    <div className="text-sm text-gray-600">SUI Raised</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-lg font-bold text-primary-600">
+                      {dream.goalAmount > 0 ? ((dream.savedAmount / dream.goalAmount) * 100).toFixed(0) : 0}%
+                    </div>
+                    <div className="text-sm text-gray-600">Goal Achieved</div>
+                  </div>
+                </div>
+
+                {/* Progress Bar */}
+                <div className="mb-4">
+                  <div className="progress-bar">
+                    <div className="progress-fill" style={{ width: '100%' }}></div>
+                  </div>
+                  <div className="text-sm text-gray-600 mt-1 text-center">
+                    Goal: {mistToSui(dream.goalAmount).toFixed(2)} SUI
+                  </div>
+                </div>
+
+                {/* Description */}
+                {dream.description && dream.description !== 'No description provided' && (
+                  <p className="text-gray-600 text-sm mb-4 line-clamp-3 leading-relaxed">
+                    {dream.description}
+                  </p>
+                )}
+
+                {/* Footer */}
+                <div className="flex items-center justify-between pt-4 border-t border-gray-200">
+                  <div className="flex items-center text-sm text-gray-500">
+                    <Calendar className="w-4 h-4 mr-1" />
+                    {new Date(dream.completedAt).toLocaleDateString()}
+                  </div>
+                  <div className="flex items-center text-sm text-green-600">
+                    <Award className="w-4 h-4 mr-1" />
+                    Completed
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-12">
+            <div className="card p-8 max-w-md mx-auto">
+              <Trophy className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                {searchTerm ? 'No dreams found' : 'No completed dreams yet'}
+              </h3>
+              <p className="text-gray-600">
+                {searchTerm 
+                  ? 'Try adjusting your search criteria'
+                  : 'Completed dreams will appear here when goals are achieved'
+                }
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+export default LegacyWall

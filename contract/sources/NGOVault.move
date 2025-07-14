@@ -3,19 +3,21 @@ module final_project::NGOVault;
 use final_project::DreamNFT;
 use sui::event;
 
-// use sui::transfer;
-// use sui::balance;
-// use sui::object::{Self, UID};
-// use sui::tx_context::{Self, TxContext};
-
 public struct NGOVault has key {
     id: UID,
     ngo: address,
     dreamID: ID,
     matchAmount: u64,
-    minMonths: u8,
-    fulfilledMonths: u8,
+    minAmount: u64,
+    contributedAmount: u64,
     isActive: bool,
+}
+
+public struct MonthlyContribution has copy, drop {
+    dream_id: ID,
+    vault_id: ID,
+    contributed_by: address,
+    amount: u64,
 }
 
 public struct MatchReleased has copy, drop {
@@ -28,27 +30,33 @@ public entry fun createVault(
     _: &DreamNFT::AdminCap,
     dreamID: ID,
     matchAmount: u64,
-    minMonths: u8,
+    minAmount: u64,
     ctx: &mut TxContext,
 ) {
-    // let mut ctx = tx_context;
     let vault = NGOVault {
         id: object::new(ctx),
         ngo: ctx.sender(),
         dreamID: dreamID,
         matchAmount: matchAmount,
-        minMonths: minMonths,
-        fulfilledMonths: 0,
+        minAmount: minAmount,
+        contributedAmount: 0,
         isActive: true,
     };
     transfer::transfer(vault, ctx.sender());
 }
 
-public entry fun recordMonthlyContribution(vault: &mut NGOVault, dream: &DreamNFT::DreamNFT) {
+public entry fun recordMonthlyContribution(vault: &mut NGOVault, dream: &mut DreamNFT::DreamNFT, amount: u64) {
     assert!(vault.isActive, 0);
     assert!(DreamNFT::getDreamID(dream) == vault.dreamID, 1);
+    
+    vault.contributedAmount = vault.contributedAmount + amount;
 
-    vault.fulfilledMonths = vault.fulfilledMonths + 1;
+    event::emit(MonthlyContribution {
+        dream_id: object::id(dream),
+        vault_id: object::id(vault),
+        contributed_by: DreamNFT::getDreamOwner(dream),
+        amount: amount,
+    });
 }
 
 public entry fun releaseMatch(
@@ -58,11 +66,11 @@ public entry fun releaseMatch(
     ctx: &mut TxContext,
 ) {
     assert!(vault.isActive, 0);
-    assert!(vault.fulfilledMonths >= vault.minMonths, 1);
+    assert!(vault.contributedAmount >= vault.minAmount, 1);
     assert!(vault.ngo == ctx.sender(), 2); // Only NGO can release
     assert!(DreamNFT::getDreamID(dream) == vault.dreamID, 3);
 
-    DreamNFT::addMatchAmount(dream, vault.matchAmount);
+    DreamNFT::addMatchAmount(dream, vault.matchAmount, ctx);
     vault.isActive = false;
 
     event::emit(MatchReleased {
@@ -70,4 +78,8 @@ public entry fun releaseMatch(
         amount: vault.matchAmount,
         matchedBy: vault.ngo,
     });
+}
+
+public fun getVaultID(vault: &NGOVault): ID {
+    object::id(vault)
 }

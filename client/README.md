@@ -1,69 +1,111 @@
-# React + TypeScript + Vite
+# Manorath Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React frontend application for the Manorath tokenized dream market platform.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- Professional dark green and white monochromatic design
+- Responsive layout optimized for all devices
+- Sui blockchain integration with wallet connectivity
+- Dream creation, approval, and pledging workflows
+- NGO dashboard for administrators
+- Legacy wall showcasing completed dreams
 
-## Expanding the ESLint configuration
+## Getting Started
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+1. **Install dependencies**
+   ```bash
+   npm install
+   ```
 
-```js
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+2. **Configure contracts**
+   - Update `PACKAGE_ID` in `src/constants/contracts.js`
+   - Ensure smart contracts are deployed
 
-      // Remove tseslint.configs.recommended and replace with this
-      ...tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      ...tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      ...tseslint.configs.stylisticTypeChecked,
+3. **Start development server**
+   ```bash
+   npm run dev
+   ```
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+4. **Build for production**
+   ```bash
+   npm run build
+   ```
+
+## Project Structure
+
+```
+src/
+├── components/          # Reusable UI components
+│   ├── Navigation.jsx   # Bottom navigation
+│   ├── DreamCard.jsx    # Dream display component
+│   └── ErrorBoundary.jsx
+├── pages/              # Route components
+│   ├── Home.jsx        # Landing page
+│   ├── MintDream.jsx   # Dream creation
+│   ├── DreamList.jsx   # User's dreams
+│   ├── Pledge.jsx      # Support dreams
+│   ├── NGODashboard.jsx # Admin panel
+│   └── LegacyWall.jsx  # Completed dreams
+├── utils/              # Blockchain utilities
+│   └── blockchain.js   # Sui integration
+├── constants/          # App configuration
+│   └── contracts.js    # Contract addresses
+└── index.css          # Global styles
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Design System
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+### Colors
+- **Primary Green**: #22c55e (primary-600)
+- **White**: #ffffff
+- **Gray Scale**: #f9fafb to #111827
 
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+### Typography
+- **Font Family**: Inter (primary), JetBrains Mono (code)
+- **Font Weights**: 300-900
+
+### Components
+- **Cards**: Clean white backgrounds with subtle shadows
+- **Buttons**: Primary (green), secondary (white), outline, danger
+- **Status Badges**: Color-coded for different states
+- **Progress Bars**: Green fill with smooth animations
+
+## Key Features
+
+### Wallet Integration
+- Mysten Dapp Kit for Sui wallet connectivity
+- Automatic network detection
+- Transaction signing and execution
+
+### Dream Management
+- Create and submit dreams for approval
+- Track approval status and progress
+- Pledge to approved dreams
+
+### NGO Administration
+- Review and approve/reject dreams
+- Create matching fund vaults
+- Track vault progress and release funds
+
+### Responsive Design
+- Mobile-first approach
+- Bottom navigation for mobile
+- Adaptive layouts for all screen sizes
+
+## Environment Variables
+
+Create a `.env.local` file:
 ```
+REACT_APP_PACKAGE_ID=your_deployed_package_id
+```
+
+## Dependencies
+
+- **React 18**: UI framework
+- **Vite**: Build tool and dev server
+- **Tailwind CSS**: Utility-first CSS framework
+- **@mysten/dapp-kit**: Sui blockchain integration
+- **Lucide React**: Icon library
+- **React Router**: Client-side routing
+- **React Hot Toast**: Notifications
